@@ -1,18 +1,20 @@
-# Docker Compose Setup for Voting System
+# Voting System - Docker Deployment
 
-This repository contains the complete voting system with backend API and database services orchestrated via Docker Compose.
+This repository contains the complete voting system deployment configuration with backend API, frontend, and database services orchestrated via Docker Compose.
 
 ## Project Structure
 
 ```
-elecciones/
+voting-deployment/
 ├── docker-compose.yml          # Main orchestration file
 ├── .env.example                # Environment template
-├── voting-backend/             # NestJS backend API
+├── .gitmodules                 # Git submodules configuration
+├── voting-backend/             # NestJS backend API (submodule)
 │   ├── Dockerfile
 │   ├── src/
 │   └── prisma/
-└── voting-frontend/            # Frontend application (if applicable)
+└── voting-frontend/            # Ionic frontend (submodule)
+    └── src/
 ```
 
 ## Quick Start
@@ -20,6 +22,22 @@ elecciones/
 ### Prerequisites
 - Docker 20.10+
 - Docker Compose 2.0+
+- Git
+
+### Clone the Repository
+
+**Clone with submodules (recommended):**
+```bash
+git clone --recursive https://github.com/d4sda123/voting-deployment.git
+cd voting-deployment
+```
+
+**Or if already cloned:**
+```bash
+git clone https://github.com/d4sda123/voting-deployment.git
+cd voting-deployment
+git submodule update --init --recursive
+```
 
 ### Setup
 
@@ -38,31 +56,28 @@ cp .env.example .env
 
 3. **Start all services:**
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 This will start:
-- **voting-db**: PostgreSQL 15 (Supabase) on port 5432
-- **voting-studio**: Supabase Studio UI on port 3001
+- **voting-db**: PostgreSQL 17.6 (Supabase) on port 5432
+- **voting-adminer**: Adminer (Database UI) on port 8080
 - **voting-backend**: NestJS API on port 3000
 
 4. **Initialize the database:**
 ```bash
-# Generate Prisma client
-docker-compose exec backend npx prisma generate
-
 # Run migrations
-docker-compose exec backend npx prisma migrate deploy
+docker compose exec backend npx prisma migrate deploy
 
 # Seed initial data (roles, permissions, admin user)
-docker-compose exec backend npx prisma db seed
+docker compose exec backend npx prisma db seed
 ```
 
 5. **Verify services:**
 - API: http://localhost:3000
 - Swagger Docs: http://localhost:3000/docs
 - Health Check: http://localhost:3000/health
-- Supabase Studio: http://localhost:3001
+- Adminer (Database UI): http://localhost:8080
 
 ## Services
 
@@ -75,121 +90,133 @@ docker-compose exec backend npx prisma db seed
 ### Database (PostgreSQL)
 - **Container**: `voting-db`
 - **Port**: 5432
-- **Image**: Supabase PostgreSQL 15
+- **Image**: Supabase PostgreSQL 17.6
 - **Volume**: `postgres_data` (persistent)
 
-### Studio (Database UI)
-- **Container**: `voting-studio`
-- **Port**: 3001 (configurable via `STUDIO_PORT`)
+### Adminer (Database UI)
+- **Container**: `voting-adminer`
+- **Port**: 8080 (configurable via `ADMINER_PORT`)
 - **Purpose**: Visual database management
+- **Login**: Use credentials from `.env` file
 
 ## Common Commands
 
 ### View Logs
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f backend
-docker-compose logs -f db
-docker-compose logs -f studio
+docker compose logs -f backend
+docker compose logs -f db
+docker compose logs -f adminer
 ```
 
 ### Restart Services
 ```bash
 # All services
-docker-compose restart
+docker compose restart
 
 # Specific service
-docker-compose restart backend
+docker compose restart backend
 ```
 
 ### Stop Services
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ### Stop and Remove Data (⚠️ Destructive)
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Access Containers
 ```bash
 # Backend shell
-docker-compose exec backend sh
+docker compose exec backend sh
 
 # Database CLI
-docker-compose exec db psql -U postgres -d voting
+docker compose exec db psql -U postgres -d voting
 ```
 
 ### Database Operations
 ```bash
 # Run migrations
-docker-compose exec backend npx prisma migrate deploy
+docker compose exec backend npx prisma migrate deploy
 
 # Seed database
-docker-compose exec backend npx prisma db seed
+docker compose exec backend npx prisma db seed
 
-# Generate Prisma client
-docker-compose exec backend npx prisma generate
+# Reset database (⚠️ destructive)
+docker compose exec backend npx prisma migrate reset
 
 # View database schema
-docker-compose exec backend npx prisma db pull
+docker compose exec backend npx prisma db pull
 ```
 
 ## Updating the Application
 
-1. Pull latest code changes
-2. Rebuild backend:
+### Update Submodules
 ```bash
-docker-compose build backend
+# Update to latest commits
+git submodule update --remote
+
+# Commit the updates
+git add voting-backend voting-frontend
+git commit -m "Update submodules"
 ```
 
-3. Run migrations if schema changed:
+### Rebuild and Restart
 ```bash
-docker-compose exec backend npx prisma migrate deploy
-```
+# Rebuild backend
+docker compose build backend
 
-4. Restart services:
-```bash
-docker-compose up -d
+# Run migrations if schema changed
+docker compose exec backend npx prisma migrate deploy
+
+# Restart services
+docker compose up -d
 ```
 
 ## Database Backup & Restore
 
 ### Create Backup
 ```bash
-docker-compose exec db pg_dump -U postgres voting > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose exec db pg_dump -U postgres voting > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 ### Restore Backup
 ```bash
-cat backup_file.sql | docker-compose exec -T db psql -U postgres -d voting
+cat backup_file.sql | docker compose exec -T db psql -U postgres -d voting
 ```
 
 ## Troubleshooting
 
 ### Backend can't connect to database
-- Check database health: `docker-compose ps`
-- View database logs: `docker-compose logs db`
+- Check database health: `docker compose ps`
+- View database logs: `docker compose logs db`
 - Verify `DATABASE_URL` in `.env`
 
 ### Port already in use
-- Change `APP_PORT` or `STUDIO_PORT` in `.env`
+- Change `APP_PORT` or `ADMINER_PORT` in `.env`
 - Or stop the conflicting service
 
 ### Prisma errors
-- Regenerate client: `docker-compose exec backend npx prisma generate`
-- Check migrations: `docker-compose exec backend npx prisma migrate status`
+- Check migrations: `docker compose exec backend npx prisma migrate status`
+- Reset if needed: `docker compose exec backend npx prisma migrate reset`
+
+### Submodules not initialized
+```bash
+git submodule update --init --recursive
+```
 
 ### Clean slate restart
 ```bash
-docker-compose down -v
-docker-compose up -d --build
-docker-compose exec backend npx prisma migrate deploy
-docker-compose exec backend npx prisma db seed
+docker compose down -v
+docker compose up -d --build
+docker compose exec backend npx prisma migrate deploy
+docker compose exec backend npx prisma db seed
 ```
 
 ## Environment Variables
@@ -198,7 +225,7 @@ See `.env.example` for all required and optional variables.
 
 ### Required
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- `APP_PORT`, `STUDIO_PORT`
+- `APP_PORT`, `ADMINER_PORT`
 - `JWT_SECRET`, `JWT_EXPIRES_IN`
 - `CORS_ORIGINS`
 - Seed data variables (admin user, organization structure)
