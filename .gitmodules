@@ -1,0 +1,6 @@
+[submodule "voting-backend"]
+	path = voting-backend
+	url = https://github.com/saviladev/voting-backend.git
+[submodule "voting-frontend"]
+	path = voting-frontend
+	url = https://github.com/saviladev/voting-frontend.git
