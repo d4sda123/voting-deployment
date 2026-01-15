@@ -83,7 +83,20 @@ services:
     networks:
       - voting-network
 
-  # Nginx Reverse Proxy
+  # Frontend Build (build-only, no runtime)
+  frontend:
+    build:
+      context: ./voting-frontend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: voting-frontend
+    volumes:
+      - frontend-dist:/app/www
+    command: sh -c "echo 'Build complete. Files in /app/www' && tail -f /dev/null"
+    profiles:
+      - build
+
+  # Nginx Reverse Proxy (serves frontend + proxies API)
   nginx:
     image: nginx:alpine
     container_name: voting-nginx
@@ -96,6 +109,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
+      - frontend-dist:/usr/share/nginx/html:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -115,6 +129,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  frontend-dist:
     driver: local
 
 networks:

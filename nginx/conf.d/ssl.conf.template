@@ -50,6 +50,7 @@ server {
 
     # Backend API proxy
     location /api {
+        rewrite ^/api/(.*) /$1 break;
         proxy_pass http://backend:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -82,13 +83,36 @@ server {
         access_log off;
     }
 
-    # Root - API info or frontend
-    location / {
-        proxy_pass http://backend:3000;
+    # Adminer - Database Management UI
+    location /adminer {
+        proxy_pass http://adminer:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Restrict access (optional - uncomment and set your IP)
+        # allow YOUR_IP_ADDRESS;
+        # deny all;
+    }
+
+    # Frontend - Ionic/Angular SPA (static files)
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+        
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+        
+        # Don't cache index.html
+        location = /index.html {
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+            expires 0;
+        }
     }
 }
