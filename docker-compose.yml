@@ -93,8 +93,6 @@ services:
     volumes:
       - frontend-dist:/app/www
     command: sh -c "echo 'Build complete. Files in /app/www' && tail -f /dev/null"
-    profiles:
-      - build
 
   # Nginx Reverse Proxy (serves frontend + proxies API)
   nginx:

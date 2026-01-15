@@ -1,254 +1,310 @@
-# Voting System - Docker Deployment
+# Voting System - Production Deployment
 
-This repository contains the complete voting system deployment configuration with backend API, frontend, and database services orchestrated via Docker Compose.
+Complete Docker-based voting system with NestJS backend, Ionic/Angular frontend, PostgreSQL database, and Nginx reverse proxy.
 
-## Project Structure
+## 📋 Project Structure
 
 ```
 voting-deployment/
-├── docker-compose.yml          # Main orchestration file
-├── .env.example                # Environment template
-├── .gitmodules                 # Git submodules configuration
-├── voting-backend/             # NestJS backend API (submodule)
+├── docker-compose.yml       # Main orchestration
+├── .env.example             # Environment template
+├── nginx/                   # Nginx reverse proxy configs
+│   ├── nginx.conf          # Main nginx config
+│   ├── conf.d/
+│   │   ├── default.conf    # HTTP configuration
+│   │   └── ssl.conf.template # HTTPS template
+│   └── README.md           # SSL setup guide
+├── voting-backend/          # NestJS API (submodule)
 │   ├── Dockerfile
 │   ├── src/
 │   └── prisma/
-└── voting-frontend/            # Ionic frontend (submodule)
+└── voting-frontend/         # Ionic frontend (submodule)
+    ├── Dockerfile
     └── src/
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 - Docker 20.10+
 - Docker Compose 2.0+
 - Git
 
-### Clone the Repository
+### 1. Clone with Submodules
 
-**Clone with submodules (recommended):**
 ```bash
 git clone --recursive https://github.com/d4sda123/voting-deployment.git
 cd voting-deployment
 ```
 
-**Or if already cloned:**
+**If already cloned:**
 ```bash
-git clone https://github.com/d4sda123/voting-deployment.git
-cd voting-deployment
 git submodule update --init --recursive
 ```
 
-### Setup
+### 2. Configure Environment
 
-1. **Copy environment template:**
 ```bash
 cp .env.example .env
+nano .env
 ```
 
-2. **Edit `.env` with your configuration:**
-   - Set secure `POSTGRES_PASSWORD`
-   - Set secure `JWT_SECRET`
-   - Configure `CORS_ORIGINS` with your frontend URLs
-   - Update `PASSWORD_RESET_URL`
-   - Configure SMTP (optional)
-   - Customize seed data
+**Essential settings:**
+```env
+# Database
+POSTGRES_PASSWORD=your_secure_password_here
 
-3. **Start all services:**
+# JWT
+JWT_SECRET=your_very_secure_jwt_secret_minimum_32_chars
+
+# Admin User
+ADMIN_DNI=00000001
+ADMIN_PASSWORD=Admin123!
+ADMIN_EMAIL=admin@example.com
+```
+
+**Generate secure secrets:**
 ```bash
-docker compose up -d --build
+# JWT secret
+openssl rand -base64 32
+
+# Strong password
+openssl rand -base64 24
 ```
 
-This will start:
-- **voting-db**: PostgreSQL 17.6 (Supabase) on port 5432
-- **voting-adminer**: Adminer (Database UI) on port 8080
-- **voting-backend**: NestJS API on port 3000
+### 3. Build Frontend
 
-4. **Initialize the database:**
+```bash
+# Build frontend (first time)
+docker compose --profile build up -d --build frontend
+
+# Wait for build to complete
+docker compose --profile build logs -f frontend
+```
+
+### 4. Start Services
+
+```bash
+# Start all services
+docker compose up -d
+
+# Check status
+docker compose ps
+```
+
+### 5. Initialize Database
+
 ```bash
 # Run migrations
 docker compose exec backend npx prisma migrate deploy
 
-# Seed initial data (roles, permissions, admin user)
+# Seed initial data (admin user, roles, permissions)
 docker compose exec backend npx prisma db seed
 ```
 
-5. **Verify services:**
-- API: http://localhost:3000
-- Swagger Docs: http://localhost:3000/docs
-- Health Check: http://localhost:3000/health
-- Adminer (Database UI): http://localhost:8080
+### 6. Access Application
 
-## Services
+- **Frontend**: http://localhost
+- **API**: http://localhost/api
+- **Swagger Docs**: http://localhost/docs
+- **Health Check**: http://localhost/health
+- **Adminer (DB UI)**: http://localhost/adminer
 
-### Backend (NestJS)
-- **Container**: `voting-backend`
-- **Port**: 3000 (configurable via `APP_PORT`)
-- **Health Check**: `/health` endpoint
-- **Documentation**: `/docs` (Swagger)
+**Default admin credentials:**
+- DNI: `00000001`
+- Password: `Admin123!`
 
-### Database (PostgreSQL)
-- **Container**: `voting-db`
-- **Port**: 5432
-- **Image**: Supabase PostgreSQL 17.6
-- **Volume**: `postgres_data` (persistent)
+## 🏗️ Architecture
 
-### Adminer (Database UI)
-- **Container**: `voting-adminer`
-- **Port**: 8080 (configurable via `ADMINER_PORT`)
-- **Purpose**: Visual database management
-- **Login**: Use credentials from `.env` file
+```
+┌─────────────────────────────────────────────┐
+│           Nginx Reverse Proxy               │
+│         (Port 80/443 - Single Entry)        │
+│                                             │
+│  Routes:                                    │
+│  /          → Frontend (static files)       │
+│  /api       → Backend API                   │
+│  /docs      → Swagger                       │
+│  /health    → Health check                  │
+│  /adminer   → Database UI                   │
+└─────────────────────────────────────────────┘
+         ↓              ↓              ↓
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│   Frontend   │ │   Backend    │ │   Adminer    │
+│  (Alpine)    │ │  (Node 20)   │ │              │
+│  Static      │ │  NestJS API  │ │  DB Manager  │
+│  Files       │ │  + Prisma    │ │              │
+└──────────────┘ └──────────────┘ └──────────────┘
+                        ↓
+                 ┌──────────────┐
+                 │  PostgreSQL  │
+                 │   (v17)      │
+                 └──────────────┘
+```
 
-## Common Commands
+## 🔄 Development Workflow
+
+### Rebuild Frontend After Changes
+
+```bash
+# Rebuild frontend
+docker compose --profile build up -d --build frontend
+
+# Restart nginx to serve new files
+docker compose restart nginx
+```
+
+### Update Backend
+
+```bash
+# Rebuild backend
+docker compose up -d --build backend
+
+# Run new migrations
+docker compose exec backend npx prisma migrate deploy
+```
 
 ### View Logs
+
 ```bash
 # All services
 docker compose logs -f
 
 # Specific service
 docker compose logs -f backend
-docker compose logs -f db
-docker compose logs -f adminer
+docker compose logs -f nginx
 ```
 
-### Restart Services
-```bash
-# All services
-docker compose restart
+## 📦 Services
 
-# Specific service
-docker compose restart backend
+| Service | Container | Port | Description |
+|---------|-----------|------|-------------|
+| **nginx** | voting-nginx | 80, 443 | Reverse proxy + frontend |
+| **backend** | voting-backend | 3000 | NestJS API |
+| **frontend** | voting-frontend | - | Build container (profile: build) |
+| **db** | voting-db | 5432 | PostgreSQL database |
+| **adminer** | voting-adminer | 8080 | Database UI |
+
+## 🔒 SSL Setup (Optional)
+
+See [`nginx/README.md`](nginx/README.md) for detailed SSL configuration with Let's Encrypt.
+
+**Quick SSL setup:**
+```bash
+# 1. Get certificate
+docker compose --profile ssl run --rm certbot certonly --webroot \
+  -w /var/www/certbot -d yourdomain.com
+
+# 2. Enable HTTPS config
+mv nginx/conf.d/default.conf nginx/conf.d/default.conf.bak
+cp nginx/conf.d/ssl.conf.template nginx/conf.d/default.conf
+
+# 3. Update domain in config
+nano nginx/conf.d/default.conf
+
+# 4. Restart nginx
+docker compose restart nginx
+
+# 5. Enable auto-renewal
+docker compose --profile ssl up -d certbot
 ```
 
-### Stop Services
+## 🛠️ Maintenance
+
+### Update Application
+
 ```bash
-docker compose down
-```
-
-### Stop and Remove Data (⚠️ Destructive)
-```bash
-docker compose down -v
-```
-
-### Access Containers
-```bash
-# Backend shell
-docker compose exec backend sh
-
-# Database CLI
-docker compose exec db psql -U postgres -d voting
-```
-
-### Database Operations
-```bash
-# Run migrations
-docker compose exec backend npx prisma migrate deploy
-
-# Seed database
-docker compose exec backend npx prisma db seed
-
-# Reset database (⚠️ destructive)
-docker compose exec backend npx prisma migrate reset
-
-# View database schema
-docker compose exec backend npx prisma db pull
-```
-
-## Updating the Application
-
-### Update Submodules
-```bash
-# Update to latest commits
+# Pull latest changes
+git pull origin main
 git submodule update --remote
 
-# Commit the updates
-git add voting-backend voting-frontend
-git commit -m "Update submodules"
-```
-
-### Rebuild and Restart
-```bash
-# Rebuild backend
-docker compose build backend
-
-# Run migrations if schema changed
-docker compose exec backend npx prisma migrate deploy
-
-# Restart services
-docker compose up -d
-```
-
-## Database Backup & Restore
-
-### Create Backup
-```bash
-docker compose exec db pg_dump -U postgres voting > backup_$(date +%Y%m%d_%H%M%S).sql
-```
-
-### Restore Backup
-```bash
-cat backup_file.sql | docker compose exec -T db psql -U postgres -d voting
-```
-
-## Troubleshooting
-
-### Backend can't connect to database
-- Check database health: `docker compose ps`
-- View database logs: `docker compose logs db`
-- Verify `DATABASE_URL` in `.env`
-
-### Port already in use
-- Change `APP_PORT` or `ADMINER_PORT` in `.env`
-- Or stop the conflicting service
-
-### Prisma errors
-- Check migrations: `docker compose exec backend npx prisma migrate status`
-- Reset if needed: `docker compose exec backend npx prisma migrate reset`
-
-### Submodules not initialized
-```bash
-git submodule update --init --recursive
-```
-
-### Clean slate restart
-```bash
-docker compose down -v
+# Rebuild and restart
+docker compose down
+docker compose --profile build up -d --build frontend
 docker compose up -d --build
+
+# Run migrations
 docker compose exec backend npx prisma migrate deploy
-docker compose exec backend npx prisma db seed
 ```
 
-## Environment Variables
+### Database Backup
 
-See `.env.example` for all required and optional variables.
+```bash
+# Manual backup
+docker compose exec -T db pg_dump -U postgres voting > backup_$(date +%Y%m%d).sql
 
-### Required
-- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- `APP_PORT`, `ADMINER_PORT`
-- `JWT_SECRET`, `JWT_EXPIRES_IN`
-- `CORS_ORIGINS`
-- Seed data variables (admin user, organization structure)
+# Restore
+docker compose exec -T db psql -U postgres voting < backup_20260115.sql
+```
 
-### Optional
-- SMTP configuration (for email notifications)
+### Clean Up
 
-## Development
+```bash
+# Stop all services
+docker compose down
 
-For backend development details, see [voting-backend/README.md](voting-backend/README.md)
+# Remove volumes (WARNING: deletes data)
+docker compose down -v
 
-## Production Deployment
+# Clean Docker system
+docker system prune -a
+```
 
-This Docker Compose setup is production-ready with:
-- ✅ Health checks on all services
-- ✅ Automatic restart policies
-- ✅ Persistent data volumes
-- ✅ Security best practices (non-root users)
-- ✅ Optimized multi-stage builds
+## 🐛 Troubleshooting
 
-For production, consider:
-- Using Docker secrets for sensitive data
-- Setting up SSL/TLS termination (Nginx/Traefik)
-- Implementing automated backups
-- Adding monitoring (Prometheus/Grafana)
-- Using a managed database service for high availability
+### Frontend not loading
+```bash
+# Check if frontend was built
+docker compose --profile build exec frontend ls -la /app/www
+
+# Check nginx has files
+docker compose exec nginx ls -la /usr/share/nginx/html
+
+# Rebuild frontend
+docker compose --profile build up -d --build frontend
+docker compose restart nginx
+```
+
+### Backend 404 errors
+```bash
+# Check backend logs
+docker compose logs backend
+
+# Verify backend is healthy
+curl http://localhost/health
+
+# Check nginx routing
+docker compose exec nginx nginx -t
+```
+
+### Database connection issues
+```bash
+# Check database health
+docker compose ps db
+
+# Test connection
+docker compose exec db psql -U postgres -d voting -c "SELECT version();"
+
+# Check backend environment
+docker compose exec backend env | grep DATABASE_URL
+```
+
+## 📚 Documentation
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - VPS deployment guide
+- **[nginx/README.md](nginx/README.md)** - SSL and Nginx configuration
+- **[Backend README](voting-backend/README.md)** - Backend API docs
+- **[Frontend README](voting-frontend/README.md)** - Frontend app docs
+
+## 🔐 Security Notes
+
+- ✅ Change default admin password immediately
+- ✅ Use strong, unique passwords for database and JWT
+- ✅ Restrict Adminer access in production
+- ✅ Enable SSL/TLS for production deployments
+- ✅ Keep secrets in `.env` (never commit)
+- ✅ Regular backups and updates
+
+## 📄 License
+
+MIT License - See LICENSE file for details
